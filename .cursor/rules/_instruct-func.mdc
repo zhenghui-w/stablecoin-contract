@@ -1,0 +1,45 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# FunC Smart Contract Development Guide
+
+## FunC Language Basics
+
+FunC is TON's smart contract language. Key syntax and conventions:
+
+- Functions end with `;`
+- Variables are declared with types: `int`, `slice`, `cell`, `builder`
+- Include files with `#include "filename.fc"`. This depends on the relative file path.
+- Booleans are defined by int. True is `-1` and false is `0`
+- If you are writing code that does not seem clear on what it does at a glance, include a comment explaining the code.
+- If you are not sure about FunC or TON, please refer to the online resources for reference.
+
+## Contract Structure Pattern
+
+Main contracts follow this pattern:
+1. **Includes** - Import dependencies
+2. **Storage Functions** - `load_data()` and `save_data()`
+3. **Message Handlers** - `recv_internal()` for processing messages
+4. **Getters** - Public read-only functions
+
+## Important Files
+
+- [`stdlib.fc`](mdc:contracts/stdlib.fc) - Standard library with message building utilities
+
+## Common Patterns
+
+- **Error Handling**: `throw_unless(error_code, condition)` 
+- **Address Validation**: `equal_slices_bits(addr1, addr2)`
+- **Message Building**: Use `begin_cell()` and `end_cell()`
+- **Storage**: Use `get_data()` and `set_data()`
+
+## Online References
+
+- [Stablecoin Jetton Contract](mdc:https:/github.com/ton-blockchain/stablecoin-contract/tree/main) - The default Stablecoin Jetton contract
+- [Library Checker](mdc:https:/github.com/EmelyanenkoK/library-checker/tree/main) - The library checking mechanism sample code provided by TON team
+- [FunC Cookbook](mdc:https:/docs.ton.org/v3/documentation/smart-contracts/func/cookbook) - References for "how-tos" in FunC
+- [TON Whitepaper](mdc:https:/ton.org/whitepaper.pdf) - Provides description on The Open Network and its technologies
+- [TON Documentation](mdc:https:/ton-blockchain.github.io/docs/#) - Provides extensive documentation on all things TON related
+- [Ton Blueprint](mdc:https:/github.com/ton-org/blueprint) - The build tool for TON smart contract development
