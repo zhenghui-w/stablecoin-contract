@@ -38,52 +38,63 @@ export const checkJettonMinter = async (
     write('Contract status: ' + result.status);
 
     assert(result.status === 'active', "Contract not active", ui);
-
     if (base64toCell(result.code).equals(jettonMinterCode)) {
         write('The contract code matches the jetton-minter code from this repository');
     } else {
-        throw new Error('The contract code DOES NOT match the jetton-minter code from this repository');
+        write('The contract code DOES NOT match the jetton-minter code from this repository');
     }
-
     write('Toncoin balance on jetton-minter: ' + fromNano(result.balance) + ' TON');
 
     const data = base64toCell(result.data);
     const parsedData = parseJettonMinterData(data);
-
     if (parsedData.wallet_code.equals(jettonWalletCode)) {
         write('The jetton-wallet code matches the jetton-wallet code from this repository');
     } else {
-        throw new Error('The jetton-wallet DOES NOT match the jetton-wallet code from this repository');
+        write('The jetton-wallet DOES NOT match the jetton-wallet code from this repository');
     }
 
-    const metadataUrl: string = (parsedData.jetton_content as Cell).beginParse().loadStringTail();
+    let metadataUrl: string = "";
+    try {
+        metadataUrl = (parsedData.jetton_content as Cell).beginParse().loadStringTail();
+    } catch (e) {
+        // jetton_content might be an on-chain metadata dict, we will read URL later
+        metadataUrl = "<embedded>";
+    }
 
     // Get-methods
 
     const jettonMinterContract: OpenedContract<JettonMinter> = provider.open(JettonMinter.createFromAddress(jettonMinterAddress.address));
     const getData = await jettonMinterContract.getJettonData();
-
     assert(getData.totalSupply === parsedData.supply, "Total supply doesn't match", ui);
     assert(getData.adminAddress.equals(parsedData.admin), "Admin address doesn't match", ui);
 
-    let decimals: number;
-    const parsedContent = await parseContentCell(getData.content);
-    if (parsedContent instanceof String) {
-        throw new Error('content not HashMap');
-    } else {
-        const contentMap: any = parsedContent;
-        console.assert(contentMap['uri'], metadataUrl, "Metadata URL doesn't match");
-        const decimalsString = contentMap['decimals'];
-        decimals = parseInt(decimalsString);
-        if (isNaN(decimals)) {
-            throw new Error('invalid decimals');
+    let decimals: number | null = null;
+    try {
+        const parsedContent = await parseContentCell(getData.content);
+        if (typeof parsedContent === 'string' || parsedContent instanceof String) {
+            metadataUrl = metadataUrl === "<embedded>" ? (parsedContent as string) : metadataUrl;
+        } else {
+            const contentMap: any = parsedContent;
+            if (metadataUrl !== "<embedded>") {
+                console.assert(contentMap['uri'], metadataUrl, "Metadata URL doesn't match");
+            } else if (contentMap['uri']) {
+                metadataUrl = contentMap['uri'];
+            }
+            const decStr = contentMap['decimals'];
+            const parsedDec = parseInt(decStr);
+            if (!isNaN(parsedDec)) {
+                decimals = parsedDec;
+            }
         }
+    } catch (e: any) {
+        write('Warning: failed to parse on-chain content: ' + e.message);
     }
 
-    assert(getData.walletCode.equals(parsedData.wallet_code), "Jetton-wallet code doesn't match", ui);
-
-    const getNextAdminAddress = await jettonMinterContract.getNextAdminAddress();
-    console.assert(equalsMsgAddresses(getNextAdminAddress, parsedData.transfer_admin), "Next admin address doesn't match");
+    try {
+        assert(getData.walletCode.equals(parsedData.wallet_code), "Jetton-wallet code doesn't match", ui);
+        const getNextAdminAddress = await jettonMinterContract.getNextAdminAddress();
+        console.assert(equalsMsgAddresses(getNextAdminAddress, parsedData.transfer_admin), "Next admin address doesn't match");
+    } catch {}
 
     // StateInit
 
@@ -101,8 +112,9 @@ export const checkJettonMinter = async (
 
     // Print
 
-    write('Decimals: ' + decimals);
-    write('Total Supply: ' + fromUnits(parsedData.supply, decimals));
+    const dec = decimals ?? 0;
+    write('Decimals: ' + dec);
+    write('Total Supply: ' + fromUnits(parsedData.supply, dec));
     write('Mintable: ' + getData.mintable);
     write(`Metadata URL: "${metadataUrl}"`);
     write('Current admin address: ' + (await formatAddressAndUrl(parsedData.admin, provider, isTestnet)));

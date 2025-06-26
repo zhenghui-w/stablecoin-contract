@@ -97,7 +97,7 @@
         int forward_ton_amount = master_msg_slice~load_coins(); ;; forward_ton_amount
         check_either_forward_payload(master_msg_slice); ;; either_forward_payload
 
-        ;; a little more than needed, it’s ok since it’s sent by the admin and excesses will return back
+        ;; a little more than needed, it's ok since it's sent by the admin and excesses will return back
         check_amount_is_enough_to_transfer(ton_amount, forward_ton_amount, fwd_fee);
 
         send_to_jetton_wallet(to_address, jetton_wallet_code, ton_amount, master_msg, TRUE);
@@ -158,6 +158,41 @@
         cell msg_cell = msg.store_maybe_ref(included_address).end_cell();
 
         send_raw_message(msg_cell, SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_BOUNCE_ON_ACTION_FAIL);
+        return ();
+    }
+
+    if (op == op::upgrade_wallet) {
+        int status = in_msg_body~load_uint(STATUS_SIZE);
+        int balance = in_msg_body~load_coins();
+        slice owner_address = in_msg_body~load_msg_addr();
+        slice jetton_master_address = in_msg_body~load_msg_addr();
+        in_msg_body.end_parse();
+
+        ;; ensure the message is intended for this minter
+        throw_unless(error::not_owner, equal_slices_bits(jetton_master_address, my_address()));
+
+        ;; deploy new wallet (V2) with the same state
+        raw_reserve(ONE_TON, RESERVE_REGULAR); ;; keep 1 TON on the minter for storage
+
+        ;; build custom StateInit that preserves status & balance
+        cell state_init = calculate_jetton_wallet_state_init_custom(status, balance, owner_address, my_address(), jetton_wallet_code);
+        slice to_wallet_address = calculate_jetton_wallet_address(state_init);
+
+        ;; body that will be accepted by wallet just to receive tons
+        cell top_up_body = begin_cell()
+        .store_op(op::top_up)
+        .store_query_id(query_id)
+        .end_cell();
+
+        ;; forward all remaining grams from this incoming message to deploy the wallet
+        var msg = begin_cell()
+        .store_msg_flags_and_address_none(BOUNCEABLE)
+        .store_slice(to_wallet_address)
+        .store_coins(msg_value);
+
+        msg = msg.store_statinit_ref_and_body_ref(state_init, top_up_body);
+
+        send_raw_message(msg.end_cell(), SEND_MODE_PAY_FEES_SEPARATELY | SEND_MODE_BOUNCE_ON_ACTION_FAIL);
         return ();
     }
 

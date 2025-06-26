@@ -12,6 +12,7 @@ export abstract class Op {
     static change_admin = 0x6501f354;
     static claim_admin = 0xfb88e119;
     static upgrade = 0x2508d66a;
+    static upgrade_wallet = 0x2508d66b;
     static call_to = 0x235caf52;
     static top_up = 0xd372158c;
     static change_metadata_url = 0xcb862902;

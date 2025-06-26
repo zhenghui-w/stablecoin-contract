@@ -544,4 +544,25 @@ export class JettonMinter implements Contract {
         const res = await provider.get('get_next_admin_address', []);
         return res.stack.readAddressOpt();
     }
+
+    static walletUpgradeMessage(status:number, balance:bigint, owner:Address, master:Address, query_id: bigint | number = 0) {
+        return beginCell()
+            .storeUint(Op.upgrade_wallet,32)
+            .storeUint(query_id,64)
+            .storeUint(status,4) // status
+            .storeCoins(balance)
+            .storeAddress(owner)
+            .storeAddress(master)
+            .endCell();
+    }
+
+    async sendWalletUpgrade(provider: ContractProvider, via: Sender,
+                            status:number, balance:bigint, owner:Address, master:Address,
+                            value:bigint = toNano('0.2'), query_id: bigint | number = 0) {
+        await provider.internal(via, {
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: JettonMinter.walletUpgradeMessage(status,balance,owner,master,query_id),
+            value
+        });
+    }
 }

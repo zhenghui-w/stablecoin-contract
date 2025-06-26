@@ -182,6 +182,31 @@
     save_data(status, balance, owner_address, jetton_master_address);
 }
 
+() upgrade_wallet(slice in_msg_body, slice sender_address, int msg_value) impure inline_ref {
+    (int status, int balance, slice owner_address, slice jetton_master_address) = load_data();
+    throw_unless(error::not_owner, equal_slices_bits(sender_address, owner_address));
+
+    cell msg_body = begin_cell()
+        .store_op(op::upgrade_wallet)
+        .store_uint(0, 64) ;; query_id = 0 for now
+        .store_uint(status, STATUS_SIZE)
+        .store_coins(balance)
+        .store_slice(owner_address)
+        .store_slice(jetton_master_address)
+        .end_cell();
+
+    ;; forward the same TONs that were sent to this wallet (msg_value) to the minter so it can deploy V2
+    cell msg = begin_cell()
+    .store_msg_flags_and_address_none(BOUNCEABLE)
+    .store_slice(jetton_master_address)
+    .store_coins(msg_value)
+    .store_only_body_ref(msg_body)
+    .end_cell();
+    
+    ;; pay gas from wallet's own balance, and transfer `msg_value` along
+    send_raw_message(msg, SEND_MODE_PAY_FEES_SEPARATELY | SEND_MODE_BOUNCE_ON_ACTION_FAIL);
+}
+
 () on_bounce(slice in_msg_body) impure inline {
     in_msg_body~skip_bounced_prefix();
     (int status, int balance, slice owner_address, slice jetton_master_address) = load_data();
@@ -220,6 +245,11 @@
     ;; burn
     if (op == op::burn) {
         burn_jettons(in_msg_body, sender_address, msg_value);
+        return ();
+    }
+
+    if (op == op::upgrade_wallet) {
+        upgrade_wallet(in_msg_body, sender_address, msg_value);
         return ();
     }
 

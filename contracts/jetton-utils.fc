@@ -32,6 +32,21 @@ cell calculate_jetton_wallet_state_init(slice owner_address, slice jetton_master
     .end_cell();
 }
 
+cell calculate_jetton_wallet_state_init_custom(int status, int balance, slice owner_address, slice jetton_master_address, cell jetton_wallet_code) inline {
+    return begin_cell()
+    .store_uint(0, 2) ;; 0b00 - No split_depth; No special
+    .store_maybe_ref(jetton_wallet_code)
+    .store_maybe_ref(
+        pack_jetton_wallet_data(
+            status,
+            balance,
+            owner_address,
+            jetton_master_address)
+    )
+    .store_uint(0, 1) ;; Empty libraries
+    .end_cell();
+}
+
 slice calculate_jetton_wallet_address(cell state_init) inline {
     {-
     https://github.com/ton-blockchain/ton/blob/8a9ff339927b22b72819c5125428b70c406da631/crypto/block/block.tlb#L105
